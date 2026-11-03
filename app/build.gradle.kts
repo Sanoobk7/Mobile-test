@@ -6,34 +6,35 @@ plugins {
 }
 
 // Release signing: put keystore.properties in the project root (never commit it),
-// or set CARO_KEYSTORE / CARO_KEYSTORE_PASSWORD / CARO_KEY_ALIAS / CARO_KEY_PASSWORD env vars.
+// or set CP_KEYSTORE / CP_KEYSTORE_PASSWORD / CP_KEY_ALIAS / CP_KEY_PASSWORD env vars.
+// Without them the release APK is signed with the debug key so it can still be installed.
 val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
 fun signingValue(prop: String, env: String): String? =
-    keystoreProps.getProperty(prop) ?: System.getenv(env)
+    keystoreProps.getProperty(prop) ?: System.getenv(env)?.takeIf { it.isNotBlank() }
 
 android {
-    namespace = "com.sanoob.caro"
+    namespace = "com.chaosparty"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.sanoob.caro"
-        minSdk = 23
+        applicationId = "com.chaosparty.game"
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
     }
 
-    val storePath = signingValue("storeFile", "CARO_KEYSTORE")
+    val storePath = signingValue("storeFile", "CP_KEYSTORE")
     signingConfigs {
         if (storePath != null) {
             create("release") {
                 storeFile = file(storePath)
-                storePassword = signingValue("storePassword", "CARO_KEYSTORE_PASSWORD")
-                keyAlias = signingValue("keyAlias", "CARO_KEY_ALIAS")
-                keyPassword = signingValue("keyPassword", "CARO_KEY_PASSWORD")
+                storePassword = signingValue("storePassword", "CP_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "CP_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "CP_KEY_PASSWORD")
             }
         }
     }
@@ -41,8 +42,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (storePath != null) signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (storePath != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 
@@ -53,4 +55,23 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    packaging {
+        resources.excludes += listOf("META-INF/*.kotlin_module", "kotlin/**", "DebugProbesKt.bin")
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.systemProperty("shots", project.findProperty("shots")?.toString() ?: "")
+            // Optional: point Robolectric at a folder with pre-downloaded android-all jars.
+            project.findProperty("roboDir")?.let { dir ->
+                it.systemProperty("robolectric.offline", "true")
+                it.systemProperty("robolectric.dependency.dir", dir.toString())
+            }
+        }
+    }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

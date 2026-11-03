@@ -1,1 +1,1 @@
-# No extra rules needed: the app has no reflection-based dependencies.
+# The app uses no reflection, so default optimize rules are enough.
