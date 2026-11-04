@@ -23,10 +23,10 @@ const val DISCOVERY_PORT = 47651
 private val mainHandler = Handler(Looper.getMainLooper())
 
 /** One TCP link carrying JSON lines. Callbacks run on the main thread. */
-class Link(private val socket: Socket, private val onLine: (Link, JSONObject) -> Unit, private val onClose: (Link) -> Unit) {
+class Link(private val socket: Socket, private val onLine: (Link, JSONObject) -> Unit, private val onClose: (Link) -> Unit) : Conn {
     private val out = PrintWriter(socket.getOutputStream().bufferedWriter(Charsets.UTF_8), false)
     private val sender = Executors.newSingleThreadExecutor()
-    @Volatile var closed = false
+    @Volatile override var closed = false
         private set
 
     init {
@@ -45,7 +45,7 @@ class Link(private val socket: Socket, private val onLine: (Link, JSONObject) ->
         }.apply { isDaemon = true }.start()
     }
 
-    fun send(o: JSONObject) {
+    override fun send(o: JSONObject) {
         if (closed) return
         val s = o.toString()
         runCatching {
@@ -62,7 +62,7 @@ class Link(private val socket: Socket, private val onLine: (Link, JSONObject) ->
     }
 
     /** Must be called on the main thread. */
-    fun close() {
+    override fun close() {
         if (closed) return
         closed = true
         runCatching { sender.execute { runCatching { socket.close() } } }

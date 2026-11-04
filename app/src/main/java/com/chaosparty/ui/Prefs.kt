@@ -5,10 +5,22 @@ import android.content.SharedPreferences
 
 object Prefs {
     private lateinit var p: SharedPreferences
+    private var defaultRelay = ""
 
     fun init(ctx: Context) {
-        if (!::p.isInitialized) p = ctx.applicationContext.getSharedPreferences("chaos", Context.MODE_PRIVATE)
+        if (!::p.isInitialized) {
+            p = ctx.applicationContext.getSharedPreferences("chaos", Context.MODE_PRIVATE)
+            defaultRelay = ctx.getString(com.chaosparty.R.string.relay_url)
+        }
     }
+
+    /** Address of the online relay server; empty when none is set up yet. */
+    var relayUrl: String
+        get() = (p.getString("relay", null) ?: defaultRelay).trim()
+        set(v) = p.edit().putString("relay", v.trim()).apply()
+    var lastCode: String
+        get() = p.getString("code", "") ?: ""
+        set(v) = p.edit().putString("code", v).apply()
 
     var name: String
         get() = p.getString("name", "") ?: ""

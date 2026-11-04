@@ -20,6 +20,7 @@ interface SessionListener {
     fun onEmote(player: Int, emote: Int) {}
     fun onBackToLobby() {}
     fun onRejected(msg: String) {}
+    fun onRoomCode(code: String) {}
     fun onClosed(reason: String) {}
 }
 

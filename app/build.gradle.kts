@@ -23,8 +23,11 @@ android {
         applicationId = "com.chaosparty.game"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
+        // Online relay address, e.g. https://chaos-party-relay.<you>.workers.dev
+        // Set with -PrelayUrl=... or in gradle.properties; players can also change it in Settings.
+        resValue("string", "relay_url", (project.findProperty("relayUrl") as String?).orEmpty())
     }
 
     val storePath = signingValue("storeFile", "CP_KEYSTORE")
@@ -62,6 +65,7 @@ android {
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
             it.systemProperty("shots", project.findProperty("shots")?.toString() ?: "")
+            it.systemProperty("testRelay", project.findProperty("testRelay")?.toString() ?: "")
             // Optional: point Robolectric at a folder with pre-downloaded android-all jars.
             project.findProperty("roboDir")?.let { dir ->
                 it.systemProperty("robolectric.offline", "true")

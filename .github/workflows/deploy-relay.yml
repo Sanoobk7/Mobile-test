@@ -1,0 +1,30 @@
+name: Deploy online server
+
+# Puts the room-code relay on Cloudflare Workers (free plan).
+# Needs repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        working-directory: relay
+        run: npm ci || npm install
+      - name: Deploy to Cloudflare
+        working-directory: relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy | tee deploy.log
+      - name: Show server address
+        working-directory: relay
+        run: |
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          echo "## Máy chủ online: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Thêm biến RELAY_URL = $URL (Settings → Secrets and variables → Actions → Variables) rồi chạy lại Build APK." >> "$GITHUB_STEP_SUMMARY"

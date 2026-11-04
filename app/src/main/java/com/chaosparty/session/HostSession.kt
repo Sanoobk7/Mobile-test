@@ -11,8 +11,10 @@ import com.chaosparty.engine.Phase
 import com.chaosparty.engine.PlayerInit
 import com.chaosparty.engine.Step
 import com.chaosparty.net.Codec
+import com.chaosparty.net.Conn
 import com.chaosparty.net.LanServer
 import com.chaosparty.net.Link
+import com.chaosparty.net.RelayHost
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.Socket
@@ -20,7 +22,8 @@ import java.net.Socket
 val BOT_NAMES = listOf("Bé Tí", "Lão Hạc", "Su Su", "Mèo Mập", "Chú Tư", "Bông", "Tèo", "Xoài", "Bánh Bao", "Ốc")
 
 /**
- * Runs the game. With [online] it also opens a LAN room; otherwise it's single player with bots.
+ * Runs the game. With [online] it opens a room: on the LAN, or through the online relay when
+ * [relayUrl] is set (friends then join with a room code). Otherwise it's single player with bots.
  * Everything runs on the main thread.
  */
 class HostSession(
@@ -28,20 +31,25 @@ class HostSession(
     private val myAvatar: Int,
     private val myGun: Int,
     override val online: Boolean,
+    private val relayUrl: String? = null,
 ) : Session() {
     override val isHost = true
 
     private class Seat(
         var name: String, val bot: Boolean, val level: Int, val avatar: Int, val gun: Int,
-        val link: Link?, val host: Boolean = false,
+        val link: Conn?, val host: Boolean = false,
     ) {
         var gone = false
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private val seats = mutableListOf(Seat(myName, false, 1, myAvatar, myGun, null, host = true))
-    private val waiting = mutableSetOf<Link>()
+    private val waiting = mutableSetOf<Conn>()
     private var server: LanServer? = null
+    private var relay: RelayHost? = null
+    /** Room code for online rooms, once the relay has given one. */
+    var roomCode: String? = null
+        private set
     private var engine: ChaosEngine? = null
     /** Per engine player id, the seat that controls it. */
     private var gameSeats: List<Seat> = emptyList()
@@ -51,6 +59,18 @@ class HostSession(
 
     fun open(onError: (String) -> Unit) {
         if (!online) return
+        val url = relayUrl
+        if (url != null) {
+            relay = RelayHost(url,
+                onCode = { code -> roomCode = code; dispatch { it.onRoomCode(code) } },
+                onPeer = { peer -> waiting.add(peer) },
+                onPeerLine = ::onLine,
+                onPeerClosed = ::onLinkClosed,
+                onLost = { msg ->
+                    if (roomCode == null) onError(msg) else dispatch { it.onRejected(msg) }
+                })
+            return
+        }
         server = LanServer({ myName }) { socket -> accept(socket) }.also { it.start(onError) }
     }
 
@@ -82,7 +102,7 @@ class HostSession(
         waiting.add(link)
     }
 
-    private fun onLine(link: Link, o: JSONObject) {
+    private fun onLine(link: Conn, o: JSONObject) {
         when (o.optString("t")) {
             "hello" -> {
                 waiting.remove(link)
@@ -114,7 +134,7 @@ class HostSession(
         }
     }
 
-    private fun onLinkClosed(link: Link) {
+    private fun onLinkClosed(link: Conn) {
         waiting.remove(link)
         if (closed) return
         val seat = seats.firstOrNull { it.link === link } ?: return
@@ -260,6 +280,7 @@ class HostSession(
         closed = true
         handler.removeCallbacksAndMessages(null)
         server?.stop()
+        relay?.stop()
         val bye = JSONObject().put("t", "err").put("msg", "Chủ phòng đã đóng phòng")
         (seats.mapNotNull { it.link } + waiting).forEach { l ->
             l.send(bye)

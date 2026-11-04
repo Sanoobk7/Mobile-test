@@ -2,7 +2,9 @@ package com.chaosparty.session
 
 import com.chaosparty.engine.Action
 import com.chaosparty.net.Codec
+import com.chaosparty.net.Conn
 import com.chaosparty.net.Link
+import com.chaosparty.net.WsConn
 import com.chaosparty.net.connectAsync
 import org.json.JSONObject
 
@@ -15,7 +17,7 @@ class ClientSession(
     override val isHost = false
     override val online = true
 
-    private var link: Link? = null
+    private var link: Conn? = null
     private var closed = false
     private var closeReason = "Mất kết nối với chủ phòng"
 
@@ -27,12 +29,37 @@ class ClientSession(
             }
             val l = Link(socket, ::onLine) { if (!closed) { closed = true; dispatch { it.onClosed(closeReason) } } }
             link = l
-            l.send(JSONObject().put("t", "hello").put("name", name).put("av", avatar).put("gun", gun).put("v", Codec.VERSION))
+            sayHello(l)
             onOk()
         }, onFail)
     }
 
-    private fun onLine(l: Link, o: JSONObject) {
+    /** Joins an online room through the relay at [relayUrl] using the host's room code. */
+    fun connectOnline(relayUrl: String, code: String, onOk: () -> Unit, onFail: (String) -> Unit) {
+        var opened = false
+        link = WsConn.open(relayUrl.trimEnd('/') + "/join/" + code.trim().uppercase(),
+            onOpen = { c ->
+                opened = true
+                sayHello(c)
+                onOk()
+            },
+            onLine = ::onLine,
+            onClose = { _, err ->
+                if (!opened) {
+                    closed = true
+                    onFail(err ?: "Không vào được phòng")
+                } else if (!closed) {
+                    closed = true
+                    dispatch { it.onClosed(closeReason) }
+                }
+            })
+    }
+
+    private fun sayHello(c: Conn) {
+        c.send(JSONObject().put("t", "hello").put("name", name).put("av", avatar).put("gun", gun).put("v", Codec.VERSION))
+    }
+
+    private fun onLine(l: Conn, o: JSONObject) {
         when (o.optString("t")) {
             "lobby" -> {
                 val arr = o.getJSONArray("seats")

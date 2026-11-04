@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.0-ff3d7f?style=for-the-badge" alt="version">
+  <img src="https://img.shields.io/badge/version-1.2.0-ff3d7f?style=for-the-badge" alt="version">
   <img src="https://img.shields.io/badge/Android-8.0%2B-3ddc84?style=for-the-badge&logo=android&logoColor=white" alt="android">
   <img src="https://img.shields.io/badge/APK-~100%20KB-ffd23f?style=for-the-badge" alt="size">
   <img src="https://img.shields.io/badge/Kotlin-100%25-7f52ff?style=for-the-badge&logo=kotlin&logoColor=white" alt="kotlin">
@@ -17,6 +17,7 @@
   <a href="https://github.com/sanoobk7/mobile-test/raw/claude/andokrd-game-app-cq2wtn/ChaosParty.apk"><b>⬇️ TẢI APK</b></a>
   &nbsp;·&nbsp; <a href="#-cài-đặt">Cài đặt</a>
   &nbsp;·&nbsp; <a href="#-luật-chơi">Luật chơi</a>
+  &nbsp;·&nbsp; <a href="#-chơi-online-bằng-mã-phòng">Chơi online</a>
   &nbsp;·&nbsp; <a href="#-chơi-lan">Chơi LAN</a>
 </p>
 
@@ -40,6 +41,7 @@
 | 🎡 **Vòng quay 8 sự kiện** | Mỗi round một luật mới: Mù màu, Điên loạn, Xoay vòng… và Ma sói đội lốt "Bình thường" |
 | 🔴⚫🩷 **3 loại đạn** | Đếm đạn còn lại hiện liên tục, không cần tự nhớ |
 | 🎒 **8 món đồ, túi 4 ô** | Kim tiêm, Cái đục, Bom hẹn giờ, Giáp, Kính lúp, Uno đảo chỗ, Adrenaline, Keo mờ ám |
+| 🌐 **Chơi online bằng mã phòng** | Host tạo phòng, gửi mã 6 ký tự, bạn bè ở đâu cũng vào được |
 | 📡 **Chơi LAN tới 6 người** | Tự dò phòng trong cùng Wi-Fi/hotspot, host thêm bot vào ghế trống |
 | 🤖 **Bot 3 cấp độ** | Bot chỉ biết những gì người thật biết, không gian lận |
 | 👕 **Skin** | 10 nhân vật, 6 súng, 5 mặt bàn, mở khoá bằng số trận thắng |
@@ -95,6 +97,34 @@
 
 </details>
 
+## 🌐 Chơi online bằng mã phòng
+
+1. Host bấm **🌐 Chơi online → Tạo phòng mới**, game hiện mã kiểu **`K7XQ2P`**.
+2. Bấm **📤 Gửi mã cho bạn bè** để gửi mã qua Zalo, Messenger…
+3. Bạn bè bấm **🌐 Chơi online**, nhập mã rồi bấm **Vào phòng**.
+
+Điện thoại của host chạy luật chơi. Máy chủ online chỉ chuyển tin giữa các máy, nên host cần giữ app mở trong suốt trận.
+
+<details>
+<summary><b>⚙️ Cài máy chủ online (làm một lần, miễn phí)</b></summary>
+
+Máy chủ chạy trên **Cloudflare Workers, gói miễn phí**. Code nằm ở thư mục [`relay/`](relay).
+
+1. Tạo tài khoản miễn phí tại **dash.cloudflare.com**.
+2. Lấy **Account ID**: trong trang Cloudflare, vào **Workers & Pages**, Account ID nằm ở cột bên phải.
+3. Tạo **API Token**: **My Profile → API Tokens → Create Token**, chọn mẫu **"Edit Cloudflare Workers"**.
+4. Trên GitHub repo này, vào **Settings → Secrets and variables → Actions → New repository secret**, thêm 2 secret:
+   - `CLOUDFLARE_API_TOKEN`
+   - `CLOUDFLARE_ACCOUNT_ID`
+5. Vào tab **Actions → Deploy online server → Run workflow**. Chạy xong, phần *Summary* sẽ hiện địa chỉ máy chủ, dạng `https://chaos-party-relay.<tên>.workers.dev`.
+6. Đưa địa chỉ đó vào app theo một trong hai cách:
+   - **Cách nhanh:** trong game vào **⚙ Cài đặt → Máy chủ online** và dán địa chỉ (mọi người trong nhóm đều phải dán).
+   - **Cách gắn sẵn:** thêm biến `RELAY_URL` ở **Settings → Secrets and variables → Actions → Variables**, rồi chạy lại workflow **Build APK**. APK mới sẽ có sẵn địa chỉ.
+
+Chạy thử trên máy tính: `cd relay && npm install && npx wrangler dev`, sau đó chạy `node test-relay.mjs`.
+
+</details>
+
 ## 📡 Chơi LAN
 
 1. Tất cả máy dùng **chung một Wi-Fi**, hoặc bắt **hotspot** của một máy.
@@ -104,7 +134,8 @@
 
 ## 🗺️ Dự kiến
 
-- [ ] Chơi online bằng mã phòng (không cần chung Wi-Fi)
+- [x] Chơi online bằng mã phòng
+- [ ] Bản chạy trên web (iPhone, laptop)
 - [ ] Đăng CH Play
 - [ ] Thêm sự kiện và đồ vật mới
 
@@ -120,7 +151,8 @@
 <summary>Cấu trúc code và ký APK</summary>
 
 - `engine/`: luật chơi và bot, Kotlin thuần, có test giả lập 3000 trận
-- `net/`, `session/`: LAN (TCP + dò phòng UDP). Host giữ luật, mỗi máy chỉ nhận thông tin mình được phép thấy
+- `net/`, `session/`: LAN (TCP + dò phòng UDP) và online (WebSocket tự viết, không dùng thư viện ngoài). Host giữ luật, mỗi máy chỉ nhận thông tin mình được phép thấy
+- `relay/`: máy chủ chuyển tin bằng mã phòng (Cloudflare Worker + Durable Object)
 - `ui/`: màn hình vẽ bằng Canvas, âm thanh tổng hợp, skin
 
 **Ký bản phát hành:** đặt `keystore.properties` (storeFile, storePassword, keyAlias, keyPassword) ở thư mục gốc,

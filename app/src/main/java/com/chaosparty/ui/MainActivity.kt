@@ -56,6 +56,7 @@ class MainActivity : Activity() {
             root.addView(b, UiKit.lp(this, 12f))
         }
         play("🤖  Chơi với Bot", Palette.ACCENT) { soloDialog() }
+        play("🌐  Chơi online (mã phòng)", 0xFF0EA5A4.toInt()) { onlineDialog() }
         play("📡  Tạo phòng LAN (Host)", 0xFF7C3AED.toInt()) { openLobby(true, null) }
         play("🔎  Vào phòng LAN (Join)", 0xFF2563EB.toInt()) { scanRooms() }
 
@@ -164,6 +165,48 @@ class MainActivity : Activity() {
         startActivity(Intent(this, LobbyActivity::class.java).putExtra("host", host).putExtra("ip", ip))
     }
 
+    private fun openOnline(host: Boolean, code: String?) {
+        startActivity(Intent(this, LobbyActivity::class.java).putExtra("host", host).putExtra("online", true).putExtra("code", code))
+    }
+
+    private fun onlineDialog() {
+        if (Prefs.relayUrl.isEmpty()) {
+            serverDialog(this) { if (Prefs.relayUrl.isNotEmpty()) onlineDialog() }
+            return
+        }
+        val col = UiKit.column(this, 18)
+        col.addView(UiKit.text(this, "Chơi với bạn ở bất cứ đâu, chỉ cần có mạng.", 14f, Palette.DIM))
+        val input = UiKit.input(this, "Nhập mã phòng (VD: K7XQ2P)", 6).apply {
+            setText(Prefs.lastCode)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            gravity = Gravity.CENTER
+            textSize = 24f
+            letterSpacing = 0.2f
+        }
+        col.addView(input, UiKit.lp(this, 14f))
+        val dlg = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog)
+            .setTitle("🌐 Chơi online")
+            .setView(col)
+            .setNegativeButton("Huỷ", null)
+            .create()
+        col.addView(UiKit.button(this, "Vào phòng", 0xFF2563EB.toInt()) {
+            val code = input.text.toString().uppercase().filter { it.isLetterOrDigit() }
+            if (code.length != 6) {
+                input.error = "Mã phòng có 6 ký tự"
+            } else {
+                Prefs.lastCode = code
+                dlg.dismiss()
+                openOnline(false, code)
+            }
+        }, UiKit.lp(this, 10f))
+        col.addView(UiKit.text(this, "hoặc", 13f, Palette.DIM, center = true), UiKit.lp(this, 10f))
+        col.addView(UiKit.button(this, "Tạo phòng mới", 0xFF7C3AED.toInt()) {
+            dlg.dismiss()
+            openOnline(true, null)
+        }, UiKit.lp(this, 10f))
+        dlg.show()
+    }
+
     private fun scanRooms() {
         val wait = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog)
             .setTitle("Đang tìm phòng...")
@@ -222,7 +265,31 @@ class MainActivity : Activity() {
                     }
                 }
                 .setPositiveButton("Xong") { _, _ -> onClose?.invoke() }
-                .setOnDismissListener { onClose?.invoke() }
+                .setNeutralButton("Máy chủ online") { _, _ -> serverDialog(a, onClose) }
+                .show()
+        }
+
+        /** Lets the player set the online relay address (normally built into the app). */
+        fun serverDialog(a: Activity, onDone: (() -> Unit)? = null) {
+            val input = UiKit.input(a, "https://chaos-party-relay....workers.dev", 200).apply {
+                setText(Prefs.relayUrl)
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+                textSize = 14f
+            }
+            val box = UiKit.column(a, 18).apply {
+                addView(UiKit.text(a, "Địa chỉ máy chủ online. Mọi người trong phòng phải dùng cùng một địa chỉ.", 13f, Palette.DIM))
+                addView(input, UiKit.lp(a, 10f))
+            }
+            AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog)
+                .setTitle(if (Prefs.relayUrl.isEmpty()) "Chưa có máy chủ online" else "Máy chủ online")
+                .setView(box)
+                .setPositiveButton("Lưu") { _, _ ->
+                    var url = input.text.toString().trim()
+                    if (url.isNotEmpty() && !url.contains("://")) url = "https://$url"
+                    Prefs.relayUrl = url.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://")
+                    onDone?.invoke()
+                }
+                .setNegativeButton("Huỷ", null)
                 .show()
         }
     }

@@ -22,6 +22,8 @@ import com.chaosparty.session.Sessions
 class LobbyActivity : Activity(), SessionListener {
     private lateinit var seatsBox: LinearLayout
     private lateinit var status: TextView
+    private lateinit var codeView: TextView
+    private lateinit var shareBtn: android.widget.Button
     private var host: HostSession? = null
     private var inGame = false
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -30,22 +32,36 @@ class LobbyActivity : Activity(), SessionListener {
         super.onCreate(savedInstanceState)
         Prefs.init(this)
         val isHost = intent.getBooleanExtra("host", true)
+        val online = intent.getBooleanExtra("online", false)
         val root = UiKit.column(this, 20)
         root.addView(UiKit.title(this, if (isHost) "PHÒNG CỦA BẠN" else "PHÒNG CHỜ", 26f), UiKit.lp(this, 8f))
         status = UiKit.text(this, "", 14f, Palette.DIM, center = true)
         root.addView(status, UiKit.lp(this, 6f))
+        codeView = UiKit.title(this, "", 44f, Palette.GOLD).apply {
+            letterSpacing = 0.15f
+            visibility = android.view.View.GONE
+            setTextIsSelectable(true)
+        }
+        root.addView(codeView, UiKit.lp(this, 4f))
+        shareBtn = UiKit.button(this, "📤  Gửi mã cho bạn bè", 0xFF2563EB.toInt()) { shareCode() }.apply { visibility = android.view.View.GONE }
+        root.addView(shareBtn, UiKit.lp(this, 6f))
         seatsBox = UiKit.column(this, 0)
         root.addView(seatsBox, UiKit.lp(this, 12f))
 
         if (isHost) {
-            val s = HostSession(Prefs.name, Prefs.avatar, Prefs.gun, online = true)
+            val s = HostSession(Prefs.name, Prefs.avatar, Prefs.gun, online = true, relayUrl = if (online) Prefs.relayUrl else null)
             host = s
             Sessions.current = s
-            multicastLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
-                ?.createMulticastLock("chaos")?.apply { setReferenceCounted(false); runCatching { acquire() } }
-            s.open { err -> status.text = err }
-            val ips = Discovery.localIps()
-            status.text = if (ips.isEmpty()) "Chưa có Wi-Fi! Hãy bật Wi-Fi hoặc hotspot." else "IP phòng: ${ips.joinToString(" • ")}\nBạn bè chọn \"Vào phòng LAN\" để tìm phòng này."
+            if (online) {
+                status.text = "Đang tạo phòng online..."
+                s.open { err -> onClosed(err) }
+            } else {
+                multicastLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
+                    ?.createMulticastLock("chaos")?.apply { setReferenceCounted(false); runCatching { acquire() } }
+                s.open { err -> status.text = err }
+                val ips = Discovery.localIps()
+                status.text = if (ips.isEmpty()) "Chưa có Wi-Fi! Hãy bật Wi-Fi hoặc hotspot." else "IP phòng: ${ips.joinToString(" • ")}\nBạn bè chọn \"Vào phòng LAN\" để tìm phòng này."
+            }
 
             val botRow = UiKit.row(this)
             listOf("+ Bot dễ" to 0, "+ Bot thường" to 1, "+ Bot khó" to 2).forEachIndexed { i, (label, lv) ->
@@ -64,12 +80,19 @@ class LobbyActivity : Activity(), SessionListener {
             s.attach(this)
             onLobby(s.lobbySeats(), 0)
         } else {
-            val ip = intent.getStringExtra("ip") ?: ""
-            status.text = "Đang kết nối tới $ip..."
             val s = ClientSession(Prefs.name, Prefs.avatar, Prefs.gun)
             Sessions.current = s
             s.attach(this)
-            s.connect(ip, { status.text = "Đã vào phòng • chờ chủ phòng bắt đầu" }, { err -> onClosed(err) })
+            val ok = { status.text = "Đã vào phòng • chờ chủ phòng bắt đầu" }
+            if (online) {
+                val code = intent.getStringExtra("code") ?: ""
+                status.text = "Đang vào phòng $code..."
+                s.connectOnline(Prefs.relayUrl, code, ok) { err -> onClosed(err) }
+            } else {
+                val ip = intent.getStringExtra("ip") ?: ""
+                status.text = "Đang kết nối tới $ip..."
+                s.connect(ip, ok) { err -> onClosed(err) }
+            }
         }
         root.addView(UiKit.button(this, "Rời phòng", 0xFF3F3558.toInt()) { finish() }, UiKit.lp(this, 12f))
         setContentView(ScrollView(this).apply { addView(root) })
@@ -120,6 +143,25 @@ class LobbyActivity : Activity(), SessionListener {
             seatsBox.addView(row, UiKit.lp(this, 6f))
         }
         if (host == null) status.text = "Đã vào phòng (${seats.size}/$MAX_PLAYERS) • chờ chủ phòng bắt đầu"
+    }
+
+    override fun onRoomCode(code: String) {
+        codeView.text = code
+        codeView.visibility = android.view.View.VISIBLE
+        shareBtn.visibility = android.view.View.VISIBLE
+        status.text = "Mã phòng online • bạn bè mở Chaos Party, chọn \"Nhập mã\""
+    }
+
+    override fun onRejected(msg: String) {
+        status.text = msg
+    }
+
+    private fun shareCode() {
+        val code = host?.roomCode ?: return
+        val text = "Vào chơi Chaos Party với mình! Mở game → 🌐 Chơi online → Nhập mã: $code"
+        runCatching {
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Gửi mã phòng"))
+        }
     }
 
     override fun onStart(you: Int) {

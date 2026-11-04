@@ -29,7 +29,7 @@ jobs:
           CP_KEYSTORE_PASSWORD: ${{ secrets.CP_KEYSTORE_PASSWORD }}
           CP_KEY_ALIAS: ${{ secrets.CP_KEY_ALIAS }}
           CP_KEY_PASSWORD: ${{ secrets.CP_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon :app:assembleRelease :app:bundleRelease
+        run: ./gradlew --no-daemon :app:assembleRelease :app:bundleRelease -PrelayUrl="${{ vars.RELAY_URL }}"
       - uses: actions/upload-artifact@v4
         with:
           name: ChaosParty
