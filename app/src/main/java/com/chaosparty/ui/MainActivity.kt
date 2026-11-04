@@ -60,17 +60,24 @@ class MainActivity : Activity() {
         play("🔎  Vào phòng LAN (Join)", 0xFF2563EB.toInt()) { scanRooms() }
 
         val small = UiKit.row(this)
-        small.addView(UiKit.button(this, "👕 Tủ đồ", 0xFF3F3558.toInt()) { startActivity(Intent(this, SkinActivity::class.java)) }, UiKit.lp(this, 0f, 0, 1f))
-        small.addView(UiKit.button(this, "📖 Luật", 0xFF3F3558.toInt()) { startActivity(Intent(this, RulesActivity::class.java)) },
+        small.addView(UiKit.button(this, "👕 Tủ đồ", 0xFF3F3558.toInt()) { startActivity(Intent(this, SkinActivity::class.java)) }.apply { textSize = 14f; maxLines = 1 }, UiKit.lp(this, 0f, 0, 1f))
+        small.addView(UiKit.button(this, "📖 Luật", 0xFF3F3558.toInt()) { startActivity(Intent(this, RulesActivity::class.java)) }.apply { textSize = 14f; maxLines = 1 },
             UiKit.lp(this, 0f, 0, 1f).apply { leftMargin = UiKit.dp(this@MainActivity, 8f) })
-        small.addView(UiKit.button(this, "⚙ Cài đặt", 0xFF3F3558.toInt()) { settingsDialog(this) },
+        small.addView(UiKit.button(this, "⚙ Cài đặt", 0xFF3F3558.toInt()) { settingsDialog(this) }.apply { textSize = 14f; maxLines = 1 },
             UiKit.lp(this, 0f, 0, 1f).apply { leftMargin = UiKit.dp(this@MainActivity, 8f) })
         root.addView(small, UiKit.lp(this, 16f))
 
         stats = UiKit.text(this, "", 13f, Palette.DIM, center = true)
         root.addView(stats, UiKit.lp(this, 14f))
 
-        setContentView(ScrollView(this).apply { addView(root); isFillViewport = true })
+        val frame = android.widget.FrameLayout(this)
+        frame.addView(ScrollView(this).apply { addView(root); isFillViewport = true })
+        val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
+        frame.addView(UiKit.text(this, "v$version", 12f, Palette.DIM), android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.END,
+        ).apply { val m = UiKit.dp(this@MainActivity, 10f); setMargins(m, m, m, m) })
+        setContentView(frame)
         refreshName()
     }
 
